@@ -22,9 +22,6 @@ import reader
 import pprint as pp
 
 
-profile = False
-
-
 # push parameters to Theano shared variables
 def zipp(params, tparams):
     for kk, vv in params.iteritems():
@@ -336,7 +333,6 @@ def gru_layer(tparams, state_below, options, prefix='gru',
                                     non_sequences=shared_vars,
                                     name=_p(prefix, '_layers'),
                                     n_steps=nsteps,
-                                    profile=profile,
                                     strict=True)
     rval = [rval]
     return rval
@@ -471,11 +467,11 @@ def perplexity(f_cost, lines, worddict, options, verbose=False):
 
 
 def sgd(lr, tparams, grads, inps, cost, max_grad_norm):
-    gnorm = tensor.sqrt(sum((g**2).sum() for g in grads))
-    #scale_num = max_grad_norm
-    #scale_den = tensor.maximum(gnorm, max_grad_norm)
-    #alpha = scale_num / scale_den
-    alpha = tensor.switch(gnorm > max_grad_norm, max_grad_norm / gnorm, 1.)
+    if max_grad_norm > 0:
+        gnorm = tensor.sqrt(sum((g**2).sum() for g in grads))
+        alpha = tensor.switch(gnorm > max_grad_norm, max_grad_norm / gnorm, 1.)
+    else:
+        alpha = 1.
     # allocate gradients and set them all to zero
     gshared = [theano.shared(p.get_value() * 0., name='%s_grad' % k)
                for k, p in tparams.iteritems()]
@@ -485,14 +481,13 @@ def sgd(lr, tparams, grads, inps, cost, max_grad_norm):
     gsup = [(gs, alpha * g) for gs, g in zip(gshared, grads)]
 
     # compile theano function to compute cost and copy gradients
-    f_grad_shared = theano.function(inps, cost, updates=gsup,
-                                    profile=profile)
+    f_grad_shared = theano.function(inps, cost, updates=gsup)
 
     # define the update step rule
     pup = [(p, p - lr * g) for p, g in zip(itemlist(tparams), gshared)]
 
     # compile a function for update
-    f_update = theano.function([lr], [], updates=pup, profile=profile)
+    f_update = theano.function([lr], [], updates=pup)
 
     return f_grad_shared, f_update
 
@@ -549,13 +544,13 @@ def train(dim_word=100,  # word vector dimensionality
 
     # before any regularizer
     print 'Building f_log_probs...',
-    f_log_probs = theano.function(inps, cost, updates=ups, profile=profile)
+    f_log_probs = theano.function(inps, cost, updates=ups)
     print 'Done'
 
     # before any regularizer - will be used to compute ppl
     print 'Building f_cost...',
     cost_sum = cost.sum()
-    f_cost = theano.function(inps, cost_sum, updates=ups, profile=profile)
+    f_cost = theano.function(inps, cost_sum, updates=ups)
     print 'Done'
 
     cost = cost.mean()
