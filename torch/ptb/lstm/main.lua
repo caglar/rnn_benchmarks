@@ -41,6 +41,7 @@ local params = {batch_size=20,
                ]]--
 
 -- Trains 1h and gives test 115 perplexity.
+--[[
 local params = {batch_size=20,
                 seq_length=40,
                 layers=1,
@@ -53,6 +54,7 @@ local params = {batch_size=20,
                 max_epoch=4,
                 max_max_epoch=6,
                 max_grad_norm=5}
+--]]
 --[[ 
 local params = {batch_size=20,
                 seq_length=50,
@@ -68,10 +70,9 @@ local params = {batch_size=20,
                 max_grad_norm=5}
 --]]
 
---[[ 
 local params = {batch_size=20,
                 seq_length=20,
-                layers=2,
+                layers=1,
                 decay=2,
                 rnn_size=200,
                 dropout=0.5,
@@ -81,7 +82,6 @@ local params = {batch_size=20,
                 max_epoch=4,
                 max_max_epoch=6,
                 max_grad_norm=5}
---]]
 local function transfer_data(x)
   return x:cuda()
 end

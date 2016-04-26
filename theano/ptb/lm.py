@@ -386,7 +386,7 @@ def build_model(tparams, options):
         emb = dropout_layer(emb, use_noise=use_noise)
 
     opt_ret['emb'] = emb
-    
+
     # pass through LSTM layer, recurrence here
     updates = {}
     ht = emb
@@ -507,16 +507,10 @@ def train(dim_word=100,  # word vector dimensionality
           max_grad_norm=5,
           nlayers=1,
           data_path=None,
-          use_dropout=False,
-          reload_=False):
+          use_dropout=False):
 
     # Model options
     model_options = locals().copy()
-
-    # reload options
-    if reload_ and os.path.exists(saveto):
-        with open('%s.pkl' % saveto, 'rb') as f:
-            model_options = pkl.load(f)
 
     print 'Loading data'
 
@@ -525,11 +519,6 @@ def train(dim_word=100,  # word vector dimensionality
     pp.pprint(model_options)
     print 'Building model'
     params = init_params(model_options)
-
-    # reload parameters
-    if reload_ and os.path.exists(saveto):
-        print 'Reloading model parameters'
-        params = load_params(saveto, params)
 
     # create shared variables for parameters
     tparams = init_tparams(params)
