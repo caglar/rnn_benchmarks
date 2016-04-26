@@ -5,12 +5,9 @@ import theano
 import theano.tensor as tensor
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
-import cPickle as pkl
 import ipdb
 import numpy
-import copy
 
-import os
 import warnings
 import sys
 import time
@@ -19,7 +16,7 @@ from collections import OrderedDict
 
 import reader
 
-import pprint as pp
+import pprint
 
 
 # push parameters to Theano shared variables
@@ -185,9 +182,8 @@ def lstm_layer(tparams, state_below, options, prefix='lstm',
 
     def _slice(_x, n, dim):
         if _x.ndim == 3:
-            return _x[:, :, n*dim:(n+1)*dim]
-        return _x[:, n*dim:(n+1)*dim]
-
+            return _x[:, :, n * dim:(n + 1) * dim]
+        return _x[:, n * dim:(n + 1) * dim]
 
     def _step(x_, h_, c_, U, b, p=None,
               use_noise=None, Wemb=None):
@@ -279,8 +275,8 @@ def gru_layer(tparams, state_below, options, prefix='gru',
     # utility function to slice a tensor
     def _slice(_x, n, dim):
         if _x.ndim == 3:
-            return _x[:, :, n*dim:(n+1)*dim]
-        return _x[:, n*dim:(n+1)*dim]
+            return _x[:, :, n * dim:(n + 1) * dim]
+        return _x[:, n * dim:(n + 1) * dim]
 
     # state_below is the input word embeddings
     # input to the gates, concatenated
@@ -292,7 +288,7 @@ def gru_layer(tparams, state_below, options, prefix='gru',
 
     # step function to be used by scan
     # arguments    | sequences |outputs-info| non-seqs
-    def _step_slice(m_, x_, xx_,  h_,          U, Ux):
+    def _step_slice(m_, x_, xx_, h_, U, Ux):
         preact = tensor.dot(h_, U)
         preact += x_
 
@@ -325,7 +321,7 @@ def gru_layer(tparams, state_below, options, prefix='gru',
         init_state = tensor.unbroadcast(tensor.alloc(0., n_samples, dim), 0)
 
     if one_step:  # sampling
-        rval = _step(*(seqs+[init_state]+shared_vars))
+        rval = _step(*(seqs + [init_state] + shared_vars))
     else:  # training
         rval, updates = theano.scan(_step,
                                     sequences=seqs,
@@ -349,7 +345,7 @@ def init_params(options):
         else:
             nin = options['dim']
         params = get_layer(options['encoder'])[0](
-            options, params, prefix="encoder_l" + str(i), 
+            options, params, prefix="encoder_l" + str(i),
             nin=nin,
             dim=options['dim'])
 
@@ -392,7 +388,7 @@ def build_model(tparams, options):
     ht = emb
     for l in xrange(options['nlayers']):
         proj, ups = get_layer(options['encoder'])[1](tparams, ht, options,
-                                                     prefix='encoder_l'+str(l),
+                                                     prefix='encoder_l' + str(l),
                                                      trng=trng,
                                                      use_noise=use_noise)
         ht = proj[0]
@@ -401,9 +397,9 @@ def build_model(tparams, options):
         if options['use_dropout']:
             ht = dropout_layer(ht, use_noise=use_noise)
 
-    logit = get_layer('ff')[1](tparams, 
-                               ht, 
-                               options, 
+    logit = get_layer('ff')[1](tparams,
+                               ht,
+                               options,
                                prefix='ff_logit',
                                activ='linear')
 
@@ -455,9 +451,9 @@ def perplexity(f_cost, lines, worddict, options, verbose=False):
             else:
                 seq.append(1)  # unknown
         seq = [s if s < options['n_words'] else 1 for s in seq]
-        n_words += len(seq)+1
-        x = numpy.array(seq+[0]).astype('int64').reshape([len(seq)+1, 1])
-        x_mask = numpy.ones((len(seq)+1, 1)).astype('float32')
+        n_words += len(seq) + 1
+        x = numpy.array(seq + [0]).astype('int64').reshape([len(seq) + 1, 1])
+        x_mask = numpy.ones((len(seq) + 1, 1)).astype('float32')
 
         # note, f_cost returns negative log-prob summed over the sequence
         cost += f_cost(x, x_mask)
@@ -516,7 +512,7 @@ def train(dim_word=100,  # word vector dimensionality
 
     raw_data = reader.ptb_raw_data(data_path)
     train_data, valid_data, test_data, _ = raw_data
-    pp.pprint(model_options)
+    pprint.pprint(model_options)
     print 'Building model'
     params = init_params(model_options)
 
@@ -585,7 +581,7 @@ def train(dim_word=100,  # word vector dimensionality
             n_samples += len(x)
             uidx += 1
             use_noise.set_value(1.)
-            tlen += (x.shape[0] * x.shape[1]) 
+            tlen += (x.shape[0] * x.shape[1])
             # pad batch and create mask
             if x is None:
                 print 'Minibatch with zero sample under length ', maxlen
