@@ -1,6 +1,5 @@
 import argparse
 import logging
-import os
 import pprint
 
 import config_lm
