@@ -1,6 +1,6 @@
 from __future__ import print_function
 from platoon.channel import Controller
-
+import numpy as np
 
 class LMController(Controller):
 
@@ -27,6 +27,6 @@ if __name__ == '__main__':
     print("Controller is ready.")
     l.serve()
 
-    print(l.wps)
-    for e, w in l.wps:
-        print("Epoch {}: {} wps".format(e, w.sum()))
+    print("\n## RESULTS ##")
+    for e in l.wps:
+        print("Epoch {}: {} wps".format(e, np.sum(l.wps[e])))
