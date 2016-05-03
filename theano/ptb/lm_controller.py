@@ -19,6 +19,8 @@ class LMController(Controller):
             wps = self.wps.get(req['epoch'], [])
             wps += [req['wps']]
             self.wps[req['epoch']] = wps
+	elif 'type' in req:
+	    print(req)
 
         return control_response
 
@@ -27,6 +29,9 @@ if __name__ == '__main__':
     print("Controller is ready.")
     l.serve()
 
+    total = []
     print("\n## RESULTS ##")
     for e in l.wps:
-        print("Epoch {}: {} wps".format(e, np.sum(l.wps[e])))
+	total += [np.sum(l.wps[e])]
+
+    print("Mean wps: {}, STD: {}".format(np.mean(total), np.std(total)))

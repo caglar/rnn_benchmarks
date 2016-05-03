@@ -411,7 +411,7 @@ def build_model(tparams, options):
     # cost
     x_flat = x.flatten()
     x_flat_idx = tensor.arange(x_flat.shape[0]) * options['n_words'] + x_flat
-    cost = -tensor.log(probs.flatten()[x_flat_idx])
+    cost = -tensor.log(tensor.maximum(probs.flatten()[x_flat_idx], 1e-8))
     cost = cost.reshape([x.shape[0], x.shape[1]])
     opt_ret['cost_per_sample'] = cost
     cost = (cost).sum(0)
@@ -504,7 +504,8 @@ def train(dim_word=100,  # word vector dimensionality
           nlayers=1,
           data_path=None,
           use_dropout=False,
-          platoon=False):
+          platoon=False,
+	  name=""):
 
     # Model options
     model_options = locals().copy()
@@ -530,6 +531,7 @@ def train(dim_word=100,  # word vector dimensionality
         print "PLATOON: Initializing shared params ...",
         worker.init_shared_params(tparams.values(), param_sync_rule=ASGD())
         print "DONE"
+	worker.send_req({"type": name})
 
     # build the symbolic computational graph
     trng, use_noise, \

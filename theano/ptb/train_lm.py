@@ -18,5 +18,6 @@ if __name__ == '__main__':
 
     config = getattr(config_lm, args.proto)()
     config['platoon'] = args.platoon
+    config['name'] = args.proto
     logger.info("Model options:\n{}".format(pprint.pformat(config)))
     train(**config)
