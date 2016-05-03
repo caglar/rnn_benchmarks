@@ -411,7 +411,7 @@ def build_model(tparams, options):
     # cost
     x_flat = x.flatten()
     x_flat_idx = tensor.arange(x_flat.shape[0]) * options['n_words'] + x_flat
-    cost = -tensor.log(probs.flatten()[x_flat_idx])
+    cost = -tensor.log(tensor.maximum(probs.flatten()[x_flat_idx], 1e-8))
     cost = cost.reshape([x.shape[0], x.shape[1]])
     opt_ret['cost_per_sample'] = cost
     cost = (cost).sum(0)
@@ -503,7 +503,9 @@ def train(dim_word=100,  # word vector dimensionality
           max_grad_norm=5,
           nlayers=1,
           data_path=None,
-          use_dropout=False):
+          use_dropout=False,
+          platoon=False,
+	  name=""):
 
     # Model options
     model_options = locals().copy()
@@ -518,6 +520,18 @@ def train(dim_word=100,  # word vector dimensionality
 
     # create shared variables for parameters
     tparams = init_tparams(params)
+
+    if platoon:
+        print "PLATOON: Init ...",
+        from platoon.channel import Worker
+        from platoon.param_sync import ASGD
+        worker = Worker(control_port=5567)
+        print "DONE"
+
+        print "PLATOON: Initializing shared params ...",
+        worker.init_shared_params(tparams.values(), param_sync_rule=ASGD())
+        print "DONE"
+	worker.send_req({"type": name})
 
     # build the symbolic computational graph
     trng, use_noise, \
@@ -557,7 +571,6 @@ def train(dim_word=100,  # word vector dimensionality
     lr = tensor.scalar(name='lr')
     print 'Building optimizers...',
     f_grad_shared, f_update = sgd(lr, tparams, grads, inps, cost, max_grad_norm)
-
     print 'Done'
 
     print 'Optimization'
@@ -572,55 +585,76 @@ def train(dim_word=100,  # word vector dimensionality
     uidx = 0
     estop = False
     bad_counter = 0
+    try:
+        for eidx in xrange(max_epochs):
+            n_samples = 0
+            tlen = 0
+            start_time = time.time()
+            for x, y in reader.ptb_iterator(train_data, batch_size, maxlen):
+                if platoon:
+                    #print "PLATOON: Copying data from master ...",
+                    worker.copy_to_local()
+                    #print "DONE"
 
-    for eidx in xrange(max_epochs):
-        n_samples = 0
-        tlen = 0
-        start_time = time.time()
-        for x, y in reader.ptb_iterator(train_data, batch_size, maxlen):
-            n_samples += len(x)
-            uidx += 1
-            use_noise.set_value(1.)
-            tlen += (x.shape[0] * x.shape[1])
-            # pad batch and create mask
-            if x is None:
-                print 'Minibatch with zero sample under length ', maxlen
-                uidx -= 1
-                continue
+                n_samples += len(x)
+                uidx += 1
+                use_noise.set_value(1.)
+                tlen += (x.shape[0] * x.shape[1])
+                # pad batch and create mask
+                if x is None:
+                    print 'Minibatch with zero sample under length ', maxlen
+                    uidx -= 1
+                    continue
 
-            ud_start = time.time()
+                ud_start = time.time()
 
-            # compute cost, grads and copy grads to shared variables
-            cost = f_grad_shared(x)
+                # compute cost, grads and copy grads to shared variables
+                cost = f_grad_shared(x)
 
-            # do the update on parameters
-            f_update(lrate)
+                # do the update on parameters
+                f_update(lrate)
 
-            ud = time.time() - ud_start
+                ud = time.time() - ud_start
 
-            # check for bad numbers
-            if numpy.isnan(cost) or numpy.isinf(cost):
-                print 'NaN detected'
-                return 1.
+                if platoon:
+                    #print "PLATOON: Syncing with master ...",
+                    worker.sync_params(synchronous=True)
+                    #print "DONE"
 
-            # verbose
-            if numpy.mod(uidx, dispFreq) == 0:
-                print 'Epoch ', eidx, 'Update ', uidx, 'Cost ', cost, 'UD ', ud
+                # check for bad numbers
+                if numpy.isnan(cost) or numpy.isinf(cost):
+                    print 'NaN detected'
+                    return 1.
 
-            # finish after this many updates
-            if uidx >= finish_after:
-                print 'Finishing after %d iterations!' % uidx
-                estop = True
-                break
-        current_time = time.time()
-        wps = int(tlen // (current_time - start_time))
-        print "Current wps", wps
-        wpss.append(wps)
-        print 'Seen %d samples' % n_samples
-    print "Avg wps, ", numpy.mean(wpss)
-    print "Std avgs,", numpy.std(wpss)
+                # verbose
+                if numpy.mod(uidx, dispFreq) == 0:
+                    print 'Epoch ', eidx, 'Update ', uidx, 'Cost ', cost, 'UD ', ud
 
-    use_noise.set_value(0.)
+                # finish after this many updates
+                if uidx >= finish_after:
+                    print 'Finishing after %d iterations!' % uidx
+                    estop = True
+                    break
+            current_time = time.time()
+            wps = int(tlen // (current_time - start_time))
+            print "Current wps", wps
+            wpss.append(wps)
+            print 'Seen %d samples' % n_samples
+            if platoon:
+                print "PLATOON: Sending wps to controller ...",
+                worker.send_req({'wps': wps, 'epoch': eidx})
+                print "DONE"
+
+        print "Avg wps, ", numpy.mean(wpss)
+        print "Std avgs,", numpy.std(wpss)
+
+        use_noise.set_value(0.)
+    finally:
+        if platoon:
+            print "PLATOON: Closing worker ...",
+            worker.send_req('done')
+            worker.close()
+            print "DONE"
     return 0
 
 

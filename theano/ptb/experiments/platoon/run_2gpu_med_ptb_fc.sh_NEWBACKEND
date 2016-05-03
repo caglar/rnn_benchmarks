@@ -1,0 +1,1 @@
+THEANO_FLAGS="floatX=float32,lib.cnmem=0.85,optimizer=fast_compile" platoon-launcher lm cuda0 cuda1 -w="--proto=prototype_med_lm --platoon"
